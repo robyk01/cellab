@@ -219,6 +219,70 @@ class TestCelLabDeliverable2(unittest.TestCase):
         found_at = SimulationAnalyzer.pattern_occurs(gol, pattern, max_steps=5)
         self.assertIsNotNone(found_at)
 
+    def test_stable_state_returns_first_stable_generation(self):
+        """reaches_stable_state returns t where state(t) == state(t + 1)."""
+        # A block is stable from generation 0
+        gol = create_game_of_life(width=4, height=4)
+        gol.set_grid([
+            [0, 0, 0, 0],
+            [0, 1, 1, 0],
+            [0, 1, 1, 0],
+            [0, 0, 0, 0],
+        ])
+        self.assertEqual(SimulationAnalyzer.reaches_stable_state(gol), 0)
+
+        # A single cell dies at generation 1, then stays empty: stable at t = 1
+        lone = create_game_of_life(width=4, height=4)
+        lone.set_cell(1, 1, 1)
+        self.assertEqual(SimulationAnalyzer.reaches_stable_state(lone), 1)
+
+    def test_analyzer_does_not_modify_automaton(self):
+        """Asking a question must not advance the automaton passed in."""
+        gol = create_game_of_life(width=5, height=5)
+        gol.set_grid([
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+        ])
+        before = gol.grid.to_matrix()
+        SimulationAnalyzer.count_cells_of_type(gol, cell_type=1, n=7)
+        SimulationAnalyzer.reaches_stable_state(gol, max_steps=10)
+        SimulationAnalyzer.pattern_occurs(gol, [[1], [1], [1]], max_steps=10)
+        SimulationAnalyzer.detect_cycle(gol, max_steps=10)
+        self.assertEqual(gol.current_step, 0)
+        self.assertEqual(gol.grid.to_matrix(), before)
+
+    def test_max_steps_counts_new_steps(self):
+        """max_steps is the number of extra steps, even when the automaton has already run."""
+        gol = create_game_of_life(width=8, height=8)
+        gol.set_grid([
+            [0, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0, 0],
+        ] + [[0] * 8 for _ in range(5)])
+        gol.run(10)
+        # A glider on an 8x8 torus returns to its start after 32 generations
+        self.assertEqual(SimulationAnalyzer.detect_cycle(gol, max_steps=30), (0, 32))
+
+    def test_fixed_boundary_pattern_must_fit_inside(self):
+        """With FIXED edges, cells outside the grid must not be used to match a pattern."""
+        ca = CellularAutomaton(width=2, height=2, num_states=2, boundary_mode=BoundaryMode.FIXED)
+        ca.set_grid([[1, 1], [1, 1]])
+        # Would match at (0, 1) if the off-grid cell (0, 2) counted as 0
+        self.assertIsNone(SimulationAnalyzer.pattern_occurs(ca, [[1, 0]], max_steps=0))
+
+    def test_invalid_states_are_rejected(self):
+        """States must be between 0 and num_states - 1."""
+        gol = create_game_of_life(width=3, height=3)
+        with self.assertRaises(ValueError):
+            gol.set_cell(0, 0, 2)
+        with self.assertRaises(ValueError):
+            gol.set_grid([[0, 0, 0], [0, 5, 0], [0, 0, 0]])
+        with self.assertRaises(ValueError):
+            CellularAutomaton(width=3, height=3, num_states=2, rules=[Rule(current_state=0, next_state=3)])
+
 
 if __name__ == "__main__":
     unittest.main()

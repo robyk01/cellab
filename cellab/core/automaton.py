@@ -40,12 +40,49 @@ class CellularAutomaton:
                 boundary_mode=self.boundary_mode,
             )
 
+        for rule in self.rules:
+            self._check_state(rule.current_state, "Rule current_state")
+            self._check_state(rule.next_state, "Rule next_state")
+            if rule.target_neighbor_state is not None:
+                self._check_state(rule.target_neighbor_state, "Rule target_neighbor_state")
+        self._check_matrix(self.grid.cells)
+
         # History stores all simulated states (history[0] is initial state)
         self.history: List[Grid] = []
         self.initial_state: Grid = self.grid.clone()
 
+    def _check_state(self, state: int, what: str = "State") -> None:
+        """Raises ValueError if `state` is not one of 0 .. num_states - 1."""
+        if not 0 <= state < self.num_states:
+            raise ValueError(
+                f"{what} {state} is invalid: must be between 0 and {self.num_states - 1}"
+            )
+
+    def _check_matrix(self, matrix: List[List[int]]) -> None:
+        for r, row in enumerate(matrix):
+            for c, state in enumerate(row):
+                self._check_state(state, f"Cell ({r}, {c}) state")
+
+    def clone(self) -> CellularAutomaton:
+        """Returns an independent copy (grid, history, rules and parameters)."""
+        copy = CellularAutomaton(
+            width=self.width,
+            height=self.height,
+            num_states=self.num_states,
+            rules=list(self.rules),
+            initial_grid=self.grid,
+            boundary_mode=self.boundary_mode,
+            neighborhood=self.neighborhood,
+            name=self.name,
+            experiment_params=dict(self.experiment_params),
+        )
+        copy.initial_state = self.initial_state.clone()
+        copy.history = [g.clone() for g in self.history]
+        return copy
+
     def set_grid(self, matrix: List[List[int]]) -> None:
         """Sets the current grid state from a 2D matrix and resets initial state."""
+        self._check_matrix(matrix)
         self.grid = Grid(
             height=self.height,
             width=self.width,
@@ -57,6 +94,7 @@ class CellularAutomaton:
 
     def set_cell(self, r: int, c: int, state: int) -> None:
         """Sets a single cell state."""
+        self._check_state(state)
         self.grid.set(r, c, state)
 
     def eval_cell(self, r: int, c: int) -> int:
