@@ -6,7 +6,7 @@ Based on the architectural sketch from **L3 Deliverable 1**, this repository imp
 
 ---
 
-## 🚀 Key Features (Deliverable 2)
+## Key Features (Deliverable 2)
 
 - **Rule Model**: Flexible transition rules with support for neighbor count ranges (`min_count <= count <= max_count`), specific neighbor states, and unconditional state decays (e.g. Brian's Brain `FIRING -> DYING`).
 - **2D World (Grid)**: Matrix state supporting configurable boundary conditions (**Toroidal** wrap-around and **Fixed** boundary) and neighborhoods (**Moore** 8-neighbor and **Von Neumann** 4-neighbor).
@@ -24,56 +24,9 @@ Based on the architectural sketch from **L3 Deliverable 1**, this repository imp
 
 ---
 
-## 👥 Team Collaboration Tracks
 
-To ensure efficient teamwork without merge conflicts or blocking dependencies, the project is structured into **two independent tracks**:
 
-```
-                  ┌──────────────────────────────────────────────┐
-                  │                 CelLab Core                  │
-                  │   (Rule, Grid, CellularAutomaton, Storage)   │
-                  └──────────────────────┬───────────────────────┘
-                                         │
-                 ┌───────────────────────┴───────────────────────┐
-                 │                                               │
-                 ▼                                               ▼
-      ┌─────────────────────┐                         ┌─────────────────────┐
-      │       TRACK 1       │                         │       TRACK 2       │
-      │ Simulation Engine & │                         │ NLP Parser & GUI    │
-      │    AI Analytics     │                         │    Visualization    │
-      └──────────┬──────────┘                         └──────────┬──────────┘
-                 │                                               │
-                 ├─ Advanced Automata Rules                      ├─ Graphical Interface
-                 ├─ Optimization & Question Solvers              ├─ Natural Language Parser
-                 └─ L11: Dataset & NN/RL Experiment              └─ Interactive Visualizer
-```
-
-### **Track 1: Core Engine, Automata Models & AI Analytics (Deliverable 3 focus)**
-* **Responsible for**:
-  1. **Automata Rule Variations**: Implementing additional complex automata (e.g., Cyclic Automaton, Forest Fire, Rule 30 1D embedded).
-  2. **Advanced Question Solvers**: Optimizing cycle detection (Floyd's cycle-finding / hashing) and 2D pattern matching.
-  3. **L11 Deliverable 3 (NN / RL Experiment)**:
-     - Generate large datasets of generation sequences across different rule sets.
-     - Train a Neural Network (CNN / MLP) to predict:
-       - Next generation ($t \to t+1$), or
-       - Long-term behavior (stability vs. periodicity vs. extinction).
-
-### **Track 2: GUI, Natural Language Parser & Integration (Deliverable 4 focus)**
-* **Responsible for**:
-  1. **Graphical Interface (GUI)**:
-     - Interactive grid canvas (PyQt, Tkinter, Pygame, or Web/Streamlit).
-     - Controls: Play, Pause, Step Forward, Reset, Speed Slider.
-     - Interactive cell drawing / pattern placement.
-     - Question & Answer display panel (dropdown to choose question, parameters input, output display).
-  2. **L13 Deliverable 4 (NLP Rule Parser)**:
-     - Parse natural language descriptions (e.g., *"A dead cell with 3 live neighbors becomes alive"*) into `Rule` and `CellularAutomaton` configurations.
-     - System validation of user descriptions.
-  3. **Documentation & Agent Logs**:
-     - Maintain records of conversational assistant interactions as required by course policy.
-
----
-
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 cellab/
@@ -97,7 +50,7 @@ cellab/
 
 ---
 
-## 🧪 Testing & Verification
+## Testing & Verification
 
 Run the full test suite with Python's built-in `unittest` (no external dependencies required):
 
@@ -113,7 +66,7 @@ python3 demo_deliverable2.py
 
 ---
 
-## 💾 State Storage Example
+## State Storage Example
 
 ```python
 from cellab.core.presets import create_game_of_life
