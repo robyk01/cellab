@@ -1,5 +1,3 @@
-import os
-
 # Ignore Python bytecode and caches
 __pycache__/
 *.py[cod]
@@ -10,5 +8,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Storage / Run exports (if needed)
-*.run.json
+# Saved simulations (Save button in the window, demo_deliverable2.py)
+*.json
