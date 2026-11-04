@@ -1,0 +1,14 @@
+import os
+
+# Ignore Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Storage / Run exports (if needed)
+*.run.json
