@@ -1,0 +1,3 @@
+# Only needed for the desktop interface (run_gui.py).
+# The core library, tests and demo use the Python standard library only.
+PySide6>=6.7

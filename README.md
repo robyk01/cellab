@@ -32,21 +32,45 @@ Based on the architectural sketch from **L3 Deliverable 1**, this repository imp
 cellab/
 ├── cellab/
 │   ├── __init__.py
-│   └── core/
-│       ├── __init__.py
-│       ├── rule.py         # Rule dataclass and matching logic
-│       ├── grid.py         # 2D Grid, boundary modes, neighbor counting
-│       ├── automaton.py    # Main CellularAutomaton class & step engine
-│       ├── storage.py      # JSON State storage and recovery (Deliverable 2)
-│       ├── presets.py      # Game of Life, Brian's Brain, Seeds
-│       └── analysis.py     # Solvers for the 5 project questions
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── rule.py         # Rule dataclass and matching logic
+│   │   ├── grid.py         # 2D Grid, boundary modes, neighbor counting
+│   │   ├── automaton.py    # Main CellularAutomaton class & step engine
+│   │   ├── storage.py      # JSON State storage and recovery (Deliverable 2)
+│   │   ├── presets.py      # Game of Life, Brian's Brain, Seeds
+│   │   └── analysis.py     # Solvers for the 5 project questions
+│   ├── gui/                # PySide6 desktop interface (front end only)
+│   │   ├── __init__.py     # main() starts the app
+│   │   ├── main_window.py  # Window layout and controls
+│   │   ├── grid_view.py    # Widget that draws the grid
+│   │   └── style.py        # Dark theme
+│   └── nlp.py              # Natural language -> rules (placeholder for L13)
 ├── tests/
 │   ├── __init__.py
 │   └── test_automata.py    # Comprehensive unit tests for Deliverable 2
 ├── demo_deliverable2.py    # Live terminal demonstration script
+├── run_gui.py              # Starts the desktop interface
+├── requirements.txt        # PySide6 (only needed for the interface)
 ├── README.md               # Project documentation & team guide
 └── .gitignore
 ```
+
+---
+
+## Desktop Interface
+
+Install PySide6 once, then start the window:
+
+```bash
+pip install -r requirements.txt
+python run_gui.py
+```
+
+- **Left:** the grid. Click a cell to change its state, or drag to paint.
+- **Right:** pick the game, then Play / Step / Random / Clear and adjust the speed. **Run tests** runs the test suite and shows the results.
+- **Save / Load:** stores the current grid, rules and generation number in a JSON file (via `StorageManager`) and loads it back. Files made by `demo_deliverable2.py` can be loaded too.
+- **Rules in natural language:** a text box for the L13 NLP update. It calls `parse_rules` in `cellab/nlp.py`, which is a placeholder for now.
 
 ---
 
