@@ -10,3 +10,9 @@ Thumbs.db
 
 # Saved simulations (Save button in the window, demo_deliverable2.py)
 *.json
+*.run.json
+
+# Virtual environments
+.venv/
+venv/
+ENV/
