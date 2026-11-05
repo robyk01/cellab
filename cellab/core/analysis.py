@@ -1,7 +1,17 @@
 from __future__ import annotations
+import sys
+from pathlib import Path
 from typing import Optional, Tuple, List, Dict
-from .automaton import CellularAutomaton
-from .grid import Grid, BoundaryMode
+
+# Support direct script execution: `python3 cellab/core/analysis.py`
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from cellab.core.automaton import CellularAutomaton
+    from cellab.core.grid import Grid, BoundaryMode
+else:
+    from .automaton import CellularAutomaton
+    from .grid import Grid, BoundaryMode
+
 
 
 class SimulationAnalyzer:
@@ -147,3 +157,52 @@ class SimulationAnalyzer:
             seen_states[state_key] = sim.current_step
 
         return None
+
+
+if __name__ == "__main__":
+    from cellab.core.presets import create_game_of_life
+
+    print("=" * 60)
+    print(" CelLab Analysis Engine: Answering the 5 Project Questions")
+    print("=" * 60)
+
+    # Setup a Blinker oscillator on a 5x5 grid
+    ca = create_game_of_life(width=5, height=5)
+    blinker = [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ]
+    ca.set_grid(blinker)
+
+    print("\nInitial World State (t=0):")
+    print(ca.grid.to_string({0: ".", 1: "O"}))
+
+    # Q1: State after N iterations
+    gen3 = SimulationAnalyzer.state_after_n(ca, n=3)
+    print("\n[Q1] State after N=3 iterations:")
+    print(gen3.to_string({0: ".", 1: "O"}))
+
+    # Q2: Stable state
+    stable_t = SimulationAnalyzer.reaches_stable_state(ca, max_steps=10)
+    print(f"\n[Q2] Stable state reached? {stable_t if stable_t is not None else 'No (oscillates/repeats)'}")
+
+    # Q3: Configuration occurrence
+    pattern = [[1], [1], [1]]  # Vertical line of 3
+    pat_step = SimulationAnalyzer.pattern_occurs(ca, pattern, max_steps=10)
+    print(f"[Q3] Does vertical 3-cell pattern occur? Yes, at generation {pat_step}")
+
+    # Q4: Cell count of type X
+    live_count = SimulationAnalyzer.count_cells_of_type(ca, cell_type=1, n=4)
+    print(f"[Q4] How many cells of type 1 (Alive) exist after N=4 iterations? {live_count}")
+
+    # Q5: Cycle detection
+    cycle = SimulationAnalyzer.detect_cycle(ca, max_steps=50)
+    if cycle:
+        print(f"[Q5] Does it enter a cycle? Yes, starts at generation {cycle[0]} with period length = {cycle[1]}")
+    else:
+        print("[Q5] Does it enter a cycle? No cycle detected within max steps.")
+    print("=" * 60)
+
