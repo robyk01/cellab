@@ -1,9 +1,98 @@
+"""
+Preset automata. The rules are NOT written here: each game is a JSON file in
+`cellab/rules/`. To add a new game, add a new JSON file there with the same format.
+"""
 from __future__ import annotations
-from typing import Optional, List
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional, Union
+
 from .rule import Rule
 from .grid import BoundaryMode, NeighborhoodType
 from .automaton import CellularAutomaton
 
+RULES_DIR = Path(__file__).resolve().parent.parent / "rules"
+
+
+@dataclass
+class Preset:
+    """One game, as read from its JSON rule file."""
+    key: str                   # file name without ".json", e.g. "game_of_life"
+    name: str                  # display name, e.g. "Conway's Game of Life"
+    num_states: int
+    state_names: List[str]
+    neighborhood: NeighborhoodType
+    rule_notation: Optional[str]
+    rules: List[Rule]
+
+
+def load_preset(source: Union[str, Path]) -> Preset:
+    """
+    Reads a rule file. `source` is either a preset key ("game_of_life")
+    or a path to any .json rule file.
+    """
+    path = Path(source)
+    if path.suffix != ".json":
+        path = RULES_DIR / f"{source}.json"
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    for field in ("name", "num_states", "rules"):
+        if field not in data:
+            raise ValueError(f"{path.name}: missing required field '{field}'")
+
+    num_states = data["num_states"]
+    state_names = data.get("state_names") or [f"State {s}" for s in range(num_states)]
+    if len(state_names) != num_states:
+        raise ValueError(
+            f"{path.name}: 'state_names' has {len(state_names)} names but 'num_states' is {num_states}"
+        )
+
+    return Preset(
+        key=path.stem,
+        name=data["name"],
+        num_states=num_states,
+        state_names=state_names,
+        neighborhood=NeighborhoodType(data.get("neighborhood", "moore")),
+        rule_notation=data.get("rule_notation"),
+        rules=[Rule.from_dict(r) for r in data["rules"]],
+    )
+
+
+def list_presets() -> List[Preset]:
+    """All games found in the rules folder, sorted by file name."""
+    return [load_preset(path) for path in sorted(RULES_DIR.glob("*.json"))]
+
+
+def create_automaton(
+    preset: Union[str, Path, Preset],
+    width: int = 20,
+    height: int = 20,
+    initial_matrix: Optional[List[List[int]]] = None,
+    boundary_mode: BoundaryMode = BoundaryMode.TOROIDAL,
+) -> CellularAutomaton:
+    """Builds an automaton from a preset key, a rule file path, or a loaded Preset."""
+    if not isinstance(preset, Preset):
+        preset = load_preset(preset)
+
+    ca = CellularAutomaton(
+        width=width,
+        height=height,
+        num_states=preset.num_states,
+        rules=list(preset.rules),
+        boundary_mode=boundary_mode,
+        neighborhood=preset.neighborhood,
+        name=preset.name,
+        experiment_params={"rule_notation": preset.rule_notation} if preset.rule_notation else {},
+    )
+    if initial_matrix is not None:
+        ca.set_grid(initial_matrix)
+    return ca
+
+
+# Shortcuts for the three built-in games (rules in cellab/rules/*.json)
 
 def create_game_of_life(
     width: int = 20,
@@ -11,68 +100,8 @@ def create_game_of_life(
     initial_matrix: Optional[List[List[int]]] = None,
     boundary_mode: BoundaryMode = BoundaryMode.TOROIDAL,
 ) -> CellularAutomaton:
-    """
-    Factory for Conway's Game of Life:
-      - 2 States: 0 (Dead), 1 (Alive)
-      - B3/S23:
-        * Birth: Dead cell with exactly 3 live neighbors becomes Alive.
-        * Survival: Live cell with 2 or 3 live neighbors stays Alive.
-        * Underpopulation/Overpopulation: Live cell with < 2 or > 3 live neighbors dies.
-    """
-    rules = [
-        # Birth: 0 -> 1 if 3 live neighbors
-        Rule(
-            current_state=0,
-            next_state=1,
-            target_neighbor_state=1,
-            min_count=3,
-            max_count=3,
-            description="Birth: 3 live neighbors",
-        ),
-        # Survival: 1 -> 1 if 2 or 3 live neighbors
-        Rule(
-            current_state=1,
-            next_state=1,
-            target_neighbor_state=1,
-            min_count=2,
-            max_count=3,
-            description="Survival: 2 or 3 live neighbors",
-        ),
-        # Underpopulation: 1 -> 0 if 0 or 1 live neighbors
-        Rule(
-            current_state=1,
-            next_state=0,
-            target_neighbor_state=1,
-            min_count=0,
-            max_count=1,
-            description="Underpopulation: < 2 live neighbors",
-        ),
-        # Overpopulation: 1 -> 0 if 4 to 8 live neighbors
-        Rule(
-            current_state=1,
-            next_state=0,
-            target_neighbor_state=1,
-            min_count=4,
-            max_count=8,
-            description="Overpopulation: > 3 live neighbors",
-        ),
-    ]
-
-    ca = CellularAutomaton(
-        width=width,
-        height=height,
-        num_states=2,
-        rules=rules,
-        boundary_mode=boundary_mode,
-        neighborhood=NeighborhoodType.MOORE,
-        name="Conway's Game of Life",
-        experiment_params={"rule_notation": "B3/S23"},
-    )
-
-    if initial_matrix is not None:
-        ca.set_grid(initial_matrix)
-
-    return ca
+    """Conway's Game of Life (B3/S23), from rules/game_of_life.json."""
+    return create_automaton("game_of_life", width, height, initial_matrix, boundary_mode)
 
 
 def create_brians_brain(
@@ -81,55 +110,8 @@ def create_brians_brain(
     initial_matrix: Optional[List[List[int]]] = None,
     boundary_mode: BoundaryMode = BoundaryMode.TOROIDAL,
 ) -> CellularAutomaton:
-    """
-    Factory for Brian's Brain:
-      - 3 States: 0 (OFF), 1 (FIRING), 2 (DYING)
-      - Rules:
-        * OFF cell becomes FIRING if exactly 2 neighbors are FIRING.
-        * FIRING cell unconditionally becomes DYING.
-        * DYING cell unconditionally becomes OFF.
-    """
-    rules = [
-        # OFF -> FIRING if exactly 2 FIRING neighbors
-        Rule(
-            current_state=0,
-            next_state=1,
-            target_neighbor_state=1,
-            min_count=2,
-            max_count=2,
-            description="Birth: OFF cell with 2 FIRING neighbors becomes FIRING",
-        ),
-        # FIRING -> DYING unconditionally
-        Rule(
-            current_state=1,
-            next_state=2,
-            target_neighbor_state=None,
-            description="Decay: FIRING cell unconditionally transitions to DYING",
-        ),
-        # DYING -> OFF unconditionally
-        Rule(
-            current_state=2,
-            next_state=0,
-            target_neighbor_state=None,
-            description="Reset: DYING cell unconditionally transitions to OFF",
-        ),
-    ]
-
-    ca = CellularAutomaton(
-        width=width,
-        height=height,
-        num_states=3,
-        rules=rules,
-        boundary_mode=boundary_mode,
-        neighborhood=NeighborhoodType.MOORE,
-        name="Brian's Brain",
-        experiment_params={"rule_notation": "B2/S/3-state"},
-    )
-
-    if initial_matrix is not None:
-        ca.set_grid(initial_matrix)
-
-    return ca
+    """Brian's Brain (OFF / FIRING / DYING), from rules/brians_brain.json."""
+    return create_automaton("brians_brain", width, height, initial_matrix, boundary_mode)
 
 
 def create_seeds(
@@ -138,44 +120,5 @@ def create_seeds(
     initial_matrix: Optional[List[List[int]]] = None,
     boundary_mode: BoundaryMode = BoundaryMode.TOROIDAL,
 ) -> CellularAutomaton:
-    """
-    Factory for Seeds (B2/S):
-      - 2 States: 0 (Dead), 1 (Alive)
-      - Rules:
-        * Birth: Dead cell becomes Alive if exactly 2 neighbors are alive.
-        * All alive cells die in the next step (no survival).
-    """
-    rules = [
-        # Birth: 0 -> 1 if exactly 2 live neighbors
-        Rule(
-            current_state=0,
-            next_state=1,
-            target_neighbor_state=1,
-            min_count=2,
-            max_count=2,
-            description="Birth: exactly 2 live neighbors",
-        ),
-        # Alive cells unconditionally die
-        Rule(
-            current_state=1,
-            next_state=0,
-            target_neighbor_state=None,
-            description="Death: all alive cells die",
-        ),
-    ]
-
-    ca = CellularAutomaton(
-        width=width,
-        height=height,
-        num_states=2,
-        rules=rules,
-        boundary_mode=boundary_mode,
-        neighborhood=NeighborhoodType.MOORE,
-        name="Seeds",
-        experiment_params={"rule_notation": "B2/S"},
-    )
-
-    if initial_matrix is not None:
-        ca.set_grid(initial_matrix)
-
-    return ca
+    """Seeds (B2/S), from rules/seeds.json."""
+    return create_automaton("seeds", width, height, initial_matrix, boundary_mode)

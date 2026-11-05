@@ -38,8 +38,12 @@ cellab/
 │   │   ├── grid.py         # 2D Grid, boundary modes, neighbor counting
 │   │   ├── automaton.py    # Main CellularAutomaton class & step engine
 │   │   ├── storage.py      # JSON State storage and recovery (Deliverable 2)
-│   │   ├── presets.py      # Game of Life, Brian's Brain, Seeds
+│   │   ├── presets.py      # Loads the games from the JSON rule files
 │   │   └── analysis.py     # Solvers for the 5 project questions
+│   ├── rules/              # One JSON file per game (the rules live here, not in code)
+│   │   ├── game_of_life.json
+│   │   ├── brians_brain.json
+│   │   └── seeds.json
 │   ├── gui/                # PySide6 desktop interface (front end only)
 │   │   ├── __init__.py     # main() starts the app
 │   │   ├── main_window.py  # Window layout and controls
@@ -55,6 +59,33 @@ cellab/
 ├── README.md               # Project documentation & team guide
 └── .gitignore
 ```
+
+---
+
+## Rule Files
+
+Each game's rules are stored in a JSON file in `cellab/rules/`. Example (`seeds.json`):
+
+```json
+{
+  "name": "Seeds",
+  "num_states": 2,
+  "state_names": ["Dead", "Alive"],
+  "neighborhood": "moore",
+  "rule_notation": "B2/S",
+  "rules": [
+    {"current_state": 0, "next_state": 1, "target_neighbor_state": 1, "min_count": 2, "max_count": 2,
+     "description": "Birth: exactly 2 live neighbors"},
+    {"current_state": 1, "next_state": 0, "target_neighbor_state": null,
+     "description": "Death: all alive cells die"}
+  ]
+}
+```
+
+- `name`, `num_states` and `rules` are required; `state_names`, `neighborhood` (`moore` / `von_neumann`) and `rule_notation` are optional.
+- Rules are checked in order; the first matching rule decides the next state. `target_neighbor_state: null` means the rule always applies.
+- **To add a new game**, drop a new `.json` file in `cellab/rules/`. It appears in the window's Game list automatically.
+- In code: `create_automaton("seeds", width=40, height=40)` or `create_automaton("path/to/file.json")`.
 
 ---
 

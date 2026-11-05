@@ -7,7 +7,11 @@ from cellab.core.rule import Rule
 from cellab.core.grid import Grid, BoundaryMode, NeighborhoodType
 from cellab.core.automaton import CellularAutomaton
 from cellab.core.storage import StorageManager
-from cellab.core.presets import create_game_of_life, create_brians_brain, create_seeds
+from cellab.core.presets import (
+    create_game_of_life, create_brians_brain, create_seeds,
+    create_automaton, list_presets, load_preset,
+)
+import json
 from cellab.core.analysis import SimulationAnalyzer
 
 
@@ -282,6 +286,60 @@ class TestCelLabDeliverable2(unittest.TestCase):
             gol.set_grid([[0, 0, 0], [0, 5, 0], [0, 0, 0]])
         with self.assertRaises(ValueError):
             CellularAutomaton(width=3, height=3, num_states=2, rules=[Rule(current_state=0, next_state=3)])
+
+    def test_presets_are_loaded_from_json(self):
+        """The 3 built-in games come from the JSON files in cellab/rules/."""
+        presets = {p.key: p for p in list_presets()}
+        self.assertTrue({"game_of_life", "brians_brain", "seeds"} <= presets.keys())
+        self.assertEqual(len(presets["game_of_life"].rules), 4)
+        self.assertEqual(presets["brians_brain"].num_states, 3)
+        self.assertEqual(presets["brians_brain"].state_names, ["Off", "Firing", "Dying"])
+        self.assertEqual(create_seeds().name, "Seeds")
+
+    def test_new_game_from_a_json_file(self):
+        """Any JSON file with the same format defines a new game, without code changes."""
+        highlife = {
+            "name": "HighLife",
+            "num_states": 2,
+            "rules": [
+                {"current_state": 0, "next_state": 1, "target_neighbor_state": 1, "min_count": 3, "max_count": 3},
+                {"current_state": 0, "next_state": 1, "target_neighbor_state": 1, "min_count": 6, "max_count": 6},
+                {"current_state": 1, "next_state": 0, "target_neighbor_state": 1, "min_count": 0, "max_count": 1},
+                {"current_state": 1, "next_state": 0, "target_neighbor_state": 1, "min_count": 4, "max_count": 8},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "highlife.json"
+            path.write_text(json.dumps(highlife), encoding="utf-8")
+            ca = create_automaton(path, width=5, height=5, boundary_mode=BoundaryMode.FIXED)
+
+        self.assertEqual(ca.name, "HighLife")
+        self.assertEqual(len(ca.rules), 4)
+        # A dead cell with 6 live neighbors is born in HighLife (not in Game of Life)
+        ca.set_grid([
+            [0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 0],
+            [0, 1, 0, 1, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0],
+        ])
+        self.assertEqual(ca.step().get(2, 2), 1)
+
+    def test_invalid_rule_file_is_rejected(self):
+        """A rule file with missing fields or wrong state names gives a clear error."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing = Path(tmpdir) / "missing.json"
+            missing.write_text(json.dumps({"name": "No rules", "num_states": 2}), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_preset(missing)
+
+            wrong_names = Path(tmpdir) / "wrong_names.json"
+            wrong_names.write_text(
+                json.dumps({"name": "X", "num_states": 3, "state_names": ["A", "B"], "rules": []}),
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                load_preset(wrong_names)
 
 
 if __name__ == "__main__":

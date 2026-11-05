@@ -1,0 +1,29 @@
+{
+  "name": "Brian's Brain",
+  "num_states": 3,
+  "state_names": ["Off", "Firing", "Dying"],
+  "neighborhood": "moore",
+  "rule_notation": "B2/S/3-state",
+  "rules": [
+    {
+      "current_state": 0,
+      "next_state": 1,
+      "target_neighbor_state": 1,
+      "min_count": 2,
+      "max_count": 2,
+      "description": "Birth: OFF cell with 2 FIRING neighbors becomes FIRING"
+    },
+    {
+      "current_state": 1,
+      "next_state": 2,
+      "target_neighbor_state": null,
+      "description": "Decay: FIRING cell unconditionally transitions to DYING"
+    },
+    {
+      "current_state": 2,
+      "next_state": 0,
+      "target_neighbor_state": null,
+      "description": "Reset: DYING cell unconditionally transitions to OFF"
+    }
+  ]
+}

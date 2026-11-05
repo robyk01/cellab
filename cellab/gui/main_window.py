@@ -2,6 +2,7 @@ from __future__ import annotations
 import random
 import unittest
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, List
 
@@ -13,13 +14,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QGuiApplication
 
 from cellab.core.automaton import CellularAutomaton
-from cellab.core.presets import create_brians_brain, create_game_of_life, create_seeds
+from cellab.core.presets import create_automaton, list_presets
 from cellab.core.storage import StorageManager
 from cellab import nlp
 from .grid_view import GridView
 
 GRID_SIZE = 40
 MAX_HISTORY = 200  # keep memory bounded while the simulation runs for a long time
+MAX_TRACKED_STATES = 20_000  # cycle detection remembers up to this many grids (~32 MB for 40x40)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -31,17 +33,33 @@ class GameInfo:
     random_density: float  # share of cells set to state 1 by "Random"
 
 
-GAMES: Dict[str, GameInfo] = {
-    "Conway's Game of Life": GameInfo(
-        create_game_of_life, ["Dead", "Alive"], {0: "#1b1c23", 1: "#7cd992"}, 0.30
-    ),
-    "Brian's Brain": GameInfo(
-        create_brians_brain, ["Off", "Firing", "Dying"], {0: "#1b1c23", 1: "#f2f3f7", 2: "#4f8cff"}, 0.12
-    ),
-    "Seeds": GameInfo(
-        create_seeds, ["Dead", "Alive"], {0: "#1b1c23", 1: "#f4a259"}, 0.05
-    ),
+DEFAULT_GAME = "Conway's Game of Life"
+
+# Display-only settings (the rules themselves are in cellab/rules/*.json).
+# A rule file not listed here still works: it gets the default palette and density.
+DISPLAY: Dict[str, tuple] = {
+    "game_of_life": ({0: "#1b1c23", 1: "#7cd992"}, 0.30),
+    "brians_brain": ({0: "#1b1c23", 1: "#f2f3f7", 2: "#4f8cff"}, 0.12),
+    "seeds": ({0: "#1b1c23", 1: "#f4a259"}, 0.05),
 }
+PALETTE = ["#1b1c23", "#7cd992", "#4f8cff", "#f4a259", "#f2f3f7", "#c77dff", "#ff6b6b"]
+DEFAULT_DENSITY = 0.2
+
+
+def default_colors(num_states: int) -> Dict[int, str]:
+    return {s: PALETTE[s % len(PALETTE)] for s in range(num_states)}
+
+
+def load_games() -> Dict[str, GameInfo]:
+    """One entry per JSON rule file in cellab/rules/, keyed by the game's display name."""
+    games: Dict[str, GameInfo] = {}
+    for preset in list_presets():
+        colors, density = DISPLAY.get(preset.key, (default_colors(preset.num_states), DEFAULT_DENSITY))
+        games[preset.name] = GameInfo(partial(create_automaton, preset), preset.state_names, colors, density)
+    return games
+
+
+GAMES: Dict[str, GameInfo] = load_games()
 
 
 def _short_name(test: unittest.TestCase) -> str:
@@ -86,6 +104,9 @@ class MainWindow(QMainWindow):
         self.game: GameInfo
         self.generation = 0
         self.paint_state = 1
+        # Cycle detection: grid state -> first generation it was seen at
+        self.seen_states: Dict[bytes, int] = {}
+        self.cycle_found = False
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.step)
@@ -110,8 +131,12 @@ class MainWindow(QMainWindow):
         self.grid_view.cell_pressed.connect(self.on_cell_pressed)
         self.grid_view.cell_dragged.connect(self.on_cell_dragged)
         self.status_label = QLabel(objectName="status")
+        self.cycle_label = QLabel(objectName="cycle")
+        self.cycle_label.setWordWrap(True)
+        self.cycle_label.hide()
         grid_layout.addWidget(self.grid_view, 1)
         grid_layout.addWidget(self.status_label)
+        grid_layout.addWidget(self.cycle_label)
         root.addWidget(grid_card, 1)
 
         # Right: control panel. It scrolls when the window is too short to show everything.
@@ -142,6 +167,8 @@ class MainWindow(QMainWindow):
         side.addWidget(section_label("Game"))
         self.game_combo = QComboBox()
         self.game_combo.addItems(GAMES.keys())
+        if DEFAULT_GAME in GAMES:
+            self.game_combo.setCurrentText(DEFAULT_GAME)
         self.game_combo.currentTextChanged.connect(self.load_game)
         side.addWidget(self.game_combo)
         self.legend = QLabel(objectName="message")
@@ -170,9 +197,9 @@ class MainWindow(QMainWindow):
         # Save / load (uses cellab.core.storage)
         storage_row = QHBoxLayout()
         storage_row.setSpacing(8)
-        save_button = QPushButton("💾  Save")
+        save_button = QPushButton("Save")
         save_button.clicked.connect(self.save_dialog)
-        load_button = QPushButton("📂  Load")
+        load_button = QPushButton("Load")
         load_button.clicked.connect(self.load_dialog)
         storage_row.addWidget(save_button)
         storage_row.addWidget(load_button)
@@ -249,18 +276,54 @@ class MainWindow(QMainWindow):
         ]
         self.ca.set_grid(matrix)
         self.generation = 0
+        self.reset_cycle_tracking()
         self.refresh()
 
     def clear(self) -> None:
         self.ca.set_grid([[0] * self.ca.width for _ in range(self.ca.height)])
         self.generation = 0
+        self.reset_cycle_tracking()
         self.refresh()
 
     def step(self) -> None:
         self.ca.step()
         del self.ca.history[:-MAX_HISTORY]
         self.generation += 1
+        self.check_for_cycle()
         self.refresh()
+
+    # ---- cycle detection ------------------------------------------------
+
+    def _state_key(self) -> bytes:
+        """The whole grid packed into bytes, so states can be compared quickly."""
+        return bytes(state for row in self.ca.grid.cells for state in row)
+
+    def reset_cycle_tracking(self) -> None:
+        """Start watching for cycles from the current grid (after any manual change)."""
+        self.seen_states = {self._state_key(): self.generation}
+        self.cycle_found = False
+        self.cycle_label.hide()
+
+    def check_for_cycle(self) -> None:
+        """Called after every step: has the grid been in this exact state before?"""
+        if self.cycle_found:
+            return
+        key = self._state_key()
+        if key in self.seen_states:
+            start = self.seen_states[key]
+            length = self.generation - start
+            self.cycle_found = True
+            if length == 1:
+                text = f"Stable since generation {start}: the grid no longer changes."
+            else:
+                text = (
+                    f"Cycle found at generation {self.generation}: the grid is back to "
+                    f"generation {start} and repeats every {length} generations."
+                )
+            self.cycle_label.setText(text)
+            self.cycle_label.show()
+        elif len(self.seen_states) < MAX_TRACKED_STATES:
+            self.seen_states[key] = self.generation
 
     def toggle_play(self) -> None:
         if self.timer.isActive():
@@ -331,6 +394,7 @@ class MainWindow(QMainWindow):
         else:
             self.game = self._generic_game(ca.num_states)
         self._update_legend()
+        self.reset_cycle_tracking()
         self.refresh()
         self._show_storage_message(
             f"Loaded {Path(path).name}: {ca.name}, {ca.width}×{ca.height}, generation {self.generation}"
@@ -338,12 +402,11 @@ class MainWindow(QMainWindow):
 
     def _generic_game(self, num_states: int) -> GameInfo:
         """Display settings for a saved automaton that isn't one of the presets."""
-        palette = ["#1b1c23", "#7cd992", "#4f8cff", "#f4a259", "#f2f3f7", "#c77dff", "#ff6b6b"]
         return GameInfo(
             factory=self.game.factory,
             state_names=[f"State {s}" for s in range(num_states)],
-            colors={s: palette[s % len(palette)] for s in range(num_states)},
-            random_density=0.2,
+            colors=default_colors(num_states),
+            random_density=DEFAULT_DENSITY,
         )
 
     def _show_storage_message(self, text: str, error: bool = False) -> None:
@@ -357,10 +420,12 @@ class MainWindow(QMainWindow):
         # Click cycles the cell to its next state; dragging paints that same state
         self.paint_state = (self.ca.grid.get(r, c) + 1) % self.ca.num_states
         self.ca.set_cell(r, c, self.paint_state)
+        self.reset_cycle_tracking()
         self.refresh()
 
     def on_cell_dragged(self, r: int, c: int) -> None:
         self.ca.set_cell(r, c, self.paint_state)
+        self.reset_cycle_tracking()
         self.refresh()
 
     # ---- tests ----------------------------------------------------------
@@ -415,4 +480,5 @@ class MainWindow(QMainWindow):
             self.nl_message.setText(f"Invalid rules: {error}")
             return
         self.nl_message.setText(f"Loaded {len(rules)} rule(s) from your text.")
+        self.reset_cycle_tracking()
         self.refresh()

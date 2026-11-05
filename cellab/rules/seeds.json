@@ -1,0 +1,23 @@
+{
+  "name": "Seeds",
+  "num_states": 2,
+  "state_names": ["Dead", "Alive"],
+  "neighborhood": "moore",
+  "rule_notation": "B2/S",
+  "rules": [
+    {
+      "current_state": 0,
+      "next_state": 1,
+      "target_neighbor_state": 1,
+      "min_count": 2,
+      "max_count": 2,
+      "description": "Birth: exactly 2 live neighbors"
+    },
+    {
+      "current_state": 1,
+      "next_state": 0,
+      "target_neighbor_state": null,
+      "description": "Death: all alive cells die"
+    }
+  ]
+}

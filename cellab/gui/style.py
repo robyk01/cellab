@@ -22,6 +22,13 @@ QLabel#subtitle {{ color: #8b8d98; }}
 QLabel#section {{ color: #8b8d98; font-size: 8pt; font-weight: 600; }}
 QLabel#status {{ color: #a9abb6; }}
 QLabel#message {{ color: #a9abb6; }}
+QLabel#cycle {{
+    color: #f4a259;
+    background: rgba(244, 162, 89, 0.12);
+    border: 1px solid rgba(244, 162, 89, 0.35);
+    border-radius: 8px;
+    padding: 6px 10px;
+}}
 
 QPushButton {{
     background: #2b2d38;
